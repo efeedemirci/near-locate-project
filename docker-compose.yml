@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  db:
+    # PostGIS içeren hazır imaj. Postgres 15 tabanlı.
+    image: postgis/postgis:15-3.3
+    container_name: geo_db_container
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: geodb
+    ports:
+      - "5435:5432"
+    volumes:
+      # Verilerin kaybolmaması için volume tanımlıyoruz
+      - pgdata:/var/lib/postgresql/data
+
+  # Veritabanını görsel olarak yönetmek için pgAdmin (Opsiyonel ama öneririm)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+volumes:
+  pgdata:

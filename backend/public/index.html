@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Şehir Rehberi: Ankara & Kastamonu</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #ec4899;
+            --glass: rgba(255, 255, 255, 0.95);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        body { margin: 0; font-family: 'Poppins', sans-serif; overflow: hidden; }
+        #map { height: 100vh; width: 100%; position: absolute; top: 0; left: 0; z-index: 0; }
+
+        /* Sidebar */
+        .sidebar {
+            position: absolute; top: 20px; left: 20px; bottom: 20px; width: 380px;
+            background: var(--glass); backdrop-filter: blur(8px);
+            border-radius: 20px; box-shadow: var(--shadow); z-index: 1000;
+            display: flex; flex-direction: column; border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        .header { padding: 20px; border-bottom: 1px solid #eee; }
+        .header h1 { margin: 0; font-size: 20px; color: #1f2937; }
+        
+        .city-selector { display: flex; gap: 10px; padding: 10px 20px; background: #f9fafb; }
+        .city-btn { flex: 1; padding: 10px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; color: #6b7280; background: #e5e7eb; transition: all 0.2s; }
+        .city-btn.active { background: var(--primary); color: white; }
+
+        .categories { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 20px; }
+        .cat-item { display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 12px; cursor: pointer; background: white; border: 1px solid #f3f4f6; transition: 0.2s; }
+        .cat-item:hover, .cat-item.active { border-color: var(--primary); background: #eef2ff; transform: translateY(-2px); }
+        .cat-icon { font-size: 24px; margin-bottom: 5px; }
+        .cat-name { font-size: 11px; color: #4b5563; font-weight: 500; }
+
+        .results { flex: 1; overflow-y: auto; padding: 0 20px 20px 20px; }
+        .place-card { background: white; padding: 15px; margin-bottom: 10px; border-radius: 12px; border-left: 4px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; }
+        .place-card:hover { transform: scale(1.02); }
+        .place-name { font-weight: 600; font-size: 14px; display:block;}
+        .place-dist { font-size: 12px; color: var(--secondary); }
+        
+        /* MODAL (Yeni Yer Ekleme Penceresi) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 2000; display: none;
+            justify-content: center; align-items: center;
+        }
+        .modal {
+            background: white; padding: 30px; border-radius: 20px; width: 350px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2); animation: popIn 0.3s ease;
+        }
+        @keyframes popIn { from {transform: scale(0.8); opacity: 0;} to {transform: scale(1); opacity: 1;} }
+        
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        
+        .btn-save { background: var(--primary); color: white; width: 100%; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-cancel { background: transparent; color: #666; width: 100%; padding: 10px; border: none; cursor: pointer; margin-top: 5px; }
+
+        /* Popup İçi Buton */
+        .add-place-btn {
+            background: #10b981; color: white; border: none; padding: 8px 12px;
+            border-radius: 6px; cursor: pointer; font-size: 12px; width: 100%; margin-top: 10px;
+        }
+        .add-place-btn:hover { background: #059669; }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <div class="header"><h1>🌍 Mekan Rehberi</h1></div>
+        <div class="city-selector">
+            <button class="city-btn" onclick="goToCity('kastamonu')">Kastamonu</button>
+            <button class="city-btn active" onclick="goToCity('ankara')">Ankara</button>
+        </div>
+        <div class="categories">
+            <div class="cat-item active" onclick="selectCategory(this, 'cafe')"><span class="cat-icon">☕</span><span class="cat-name">Kafe</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'restaurant')"><span class="cat-icon">🍔</span><span class="cat-name">Yemek</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'pharmacy')"><span class="cat-icon">💊</span><span class="cat-name">Eczane</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'hospital')"><span class="cat-icon">🏥</span><span class="cat-name">Hastane</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'bank')"><span class="cat-icon">💰</span><span class="cat-name">Banka</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'park')"><span class="cat-icon">🌳</span><span class="cat-name">Park</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'mall')"><span class="cat-icon">🛍️</span><span class="cat-name">AVM</span></div>
+            <div class="cat-item" onclick="selectCategory(this, 'university')"><span class="cat-icon">🎓</span><span class="cat-name">Üni</span></div>
+        </div>
+        <div id="loading" style="text-align:center; display:none; padding:10px;">Veriler çekiliyor...</div>
+        <div class="results" id="resultsList"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="modal-overlay" id="addModalOverlay">
+        <div class="modal">
+            <h2 style="margin-top:0;">📍 Yeni Yer Ekle</h2>
+            <p style="font-size:12px; color:#666;">Seçilen Konum: <span id="selectedCoords"></span></p>
+            
+            <div class="form-group">
+                <label>Mekan İsmi</label>
+                <input type="text" id="newName" placeholder="Örn: Enfes Dönercisi">
+            </div>
+            
+            <div class="form-group">
+                <label>Kategori</label>
+                <select id="newCategory">
+                    <option value="cafe">Kafe</option>
+                    <option value="restaurant">Restoran</option>
+                    <option value="pharmacy">Eczane</option>
+                    <option value="hospital">Hastane</option>
+                    <option value="bank">Banka</option>
+                    <option value="park">Park</option>
+                    <option value="mall">AVM</option>
+                    <option value="university">Üniversite</option>
+                </select>
+            </div>
+
+            <button class="btn-save" onclick="saveNewPlace()">Kaydet</button>
+            <button class="btn-cancel" onclick="closeModal()">İptal</button>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <script>
+        // --- AYARLAR ---
+        const cities = {
+            ankara: { lat: 39.9208, lon: 32.8541, zoom: 14 },
+            kastamonu: { lat: 41.3766, lon: 33.7765, zoom: 15 }
+        };
+        let currentCategory = 'cafe';
+        let markers = [];
+        let tempClickLat = 0;
+        let tempClickLon = 0;
+
+        // --- HARİTA BAŞLATMA ---
+        const map = L.map('map', { zoomControl: false }).setView([cities.ankara.lat, cities.ankara.lon], cities.ankara.zoom);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { attribution: '© CARTO' }).addTo(map);
+
+        // --- FONKSİYONLAR ---
+        
+        function goToCity(cityKey) {
+            document.querySelectorAll('.city-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            const target = cities[cityKey];
+            map.flyTo([target.lat, target.lon], target.zoom, { duration: 1.5 });
+            setTimeout(() => searchPlaces(target.lat, target.lon), 1600);
+        }
+
+        function selectCategory(el, cat) {
+            document.querySelectorAll('.cat-item').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+            currentCategory = cat;
+            const center = map.getCenter();
+            searchPlaces(center.lat, center.lng);
+        }
+
+        // Tıklanan Yeri Yakala
+        map.on('click', async (e) => {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            tempClickLat = lat;
+            tempClickLon = lon;
+
+            // Önce en yakınları getir
+            const popupContent = await getNearestPopupContent(lat, lon);
+            
+            L.popup()
+                .setLatLng([lat, lon])
+                .setContent(popupContent)
+                .openOn(map);
+        });
+
+        async function getNearestPopupContent(lat, lon) {
+            try {
+                // Backend'den en yakınları çek
+                const res = await axios.get(`/places/search?lat=${lat}&lon=${lon}&category=${currentCategory}`);
+                const places = res.data; // İlk 5 tanesini gösterelim
+                
+                let html = `<div style="min-width:200px">
+                    <b>Yakındaki Mekanlar (${currentCategory})</b><hr style="margin:5px 0; border:0; border-top:1px solid #eee;">`;
+                
+                if (places.length > 0) {
+                    places.slice(0, 3).forEach(p => {
+                        html += `<div style="font-size:13px; margin-bottom:4px;">
+                                    <strong>${p.name}</strong> <span style="color:#888; float:right">${Math.round(p.distance)}m</span>
+                                 </div>`;
+                    });
+                } else {
+                    html += `<div style="font-size:12px; color:#999;">Yakında kayıtlı mekan yok.</div>`;
+                }
+
+                // EKLEME BUTONU
+                html += `<hr style="margin:5px 0; border:0; border-top:1px solid #eee;">
+                         <button class="add-place-btn" onclick="openAddModal()">➕ Buraya Yeni Yer Ekle</button>
+                         </div>`;
+                
+                return html;
+            } catch (e) {
+                return "Hata oluştu.";
+            }
+        }
+
+        // MODAL İŞLEMLERİ
+        function openAddModal() {
+            map.closePopup(); // Haritadaki balonu kapat
+            document.getElementById('addModalOverlay').style.display = 'flex';
+            document.getElementById('selectedCoords').innerText = `${tempClickLat.toFixed(4)}, ${tempClickLon.toFixed(4)}`;
+        }
+
+        function closeModal() {
+            document.getElementById('addModalOverlay').style.display = 'none';
+        }
+
+        async function saveNewPlace() {
+            const name = document.getElementById('newName').value;
+            const category = document.getElementById('newCategory').value;
+
+            if (!name) { alert("Lütfen isim girin!"); return; }
+
+            try {
+                await axios.post('/places', {
+                    name: name,
+                    category: category,
+                    latitude: tempClickLat,
+                    longitude: tempClickLon
+                });
+
+                alert("✅ Başarıyla Kaydedildi!");
+                closeModal();
+                
+                // Listeyi güncelle ve oraya iğne at
+                searchPlaces(tempClickLat, tempClickLon);
+                
+            } catch (e) {
+                alert("Hata oluştu: " + e.message);
+            }
+        }
+
+        // Backend İsteği (Listeleme)
+        async function searchPlaces(lat, lon) {
+            const listDiv = document.getElementById('resultsList');
+            const loading = document.getElementById('loading');
+            
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+            listDiv.innerHTML = '';
+            loading.style.display = 'block';
+
+            try {
+                const res = await axios.get(`/places/search?lat=${lat}&lon=${lon}&category=${currentCategory}`);
+                const places = res.data;
+                loading.style.display = 'none';
+
+                if (places.length === 0) {
+                    listDiv.innerHTML = '<div style="text-align:center; padding:20px; color:#999">Sonuç yok.</div>';
+                    return;
+                }
+
+                places.forEach(place => {
+                    const card = document.createElement('div');
+                    card.className = 'place-card';
+                    card.innerHTML = `<span class="place-name">${place.name}</span><span class="place-dist">📍 ${Math.round(place.distance)}m</span>`;
+                    card.onclick = () => {
+                        map.setView([place.latitude, place.longitude], 16);
+                    };
+                    listDiv.appendChild(card);
+
+                    if(place.latitude && place.longitude) {
+                        const m = L.marker([place.latitude, place.longitude]).addTo(map).bindPopup(`<b>${place.name}</b><br>${place.category}`);
+                        markers.push(m);
+                    }
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        // Başlangıç
+        searchPlaces(cities.ankara.lat, cities.ankara.lon);
+
+    </script>
+</body>
+</html>

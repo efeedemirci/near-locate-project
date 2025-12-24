@@ -1,0 +1,88 @@
+name: CI/CD Pipeline & Security Scan
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-secure:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # GitHub Container Registry'ye yazmak için
+      id-token: write # Cosign imzalama için
+
+    steps:
+      # 1. KODU ÇEK
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. NODE.JS KUR VE TESTLERİ ÇALIŞTIR (JEST)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install Dependencies & Run Tests
+        working-directory: ./backend
+        run: |
+          npm ci
+          npm run test
+
+      # 3. TRIVY - KOD GÜVENLİK TARAMASI (Dosya Sistemi)
+      - name: Run Trivy Vulnerability Scanner (FS)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '0' # Hata bulsa bile durmasın, raporlasın.
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+      # 4. DOCKER BUILD (İmaj Oluşturma)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker Image (Local)
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: false # Henüz bir yere atmıyoruz, tarayacağız.
+          load: true
+          tags: my-geo-app:latest
+
+      # 5. GRYPE - DOCKER İMAJ TARAMASI
+      - name: Scan Image with Grype
+        uses: anchore/scan-action@v3
+        with:
+          image: "my-geo-app:latest"
+          fail-build: false
+          severity-cutoff: critical
+
+      # 6. SBOM OLUŞTURMA (Software Bill of Materials)
+      - name: Generate SBOM with Syft
+        uses: anchore/sbom-action@v0
+        with:
+          image: "my-geo-app:latest"
+          format: spdx-json
+          output-file: "sbom.spdx.json"
+      
+      - name: Upload SBOM Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+      # 7. COSIGN KURULUMU (İmzalama Aracı)
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.1.1
+        with:
+          cosign-release: 'v2.1.1'
+
+      # Not: Gerçek bir imzalama için Docker Hub veya GHCR'a pushlamak gerekir.
+      # Bu adım Cosign'in çalıştığını kanıtlamak için versiyon kontrolü yapar.
+      - name: Check Cosign Version
+        run: cosign version
