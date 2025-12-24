@@ -63,6 +63,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 *.prj
 *.cpg
 *.zip
-*.json
 !package.json
 !tsconfig.json
