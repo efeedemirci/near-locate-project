@@ -55,7 +55,7 @@ pids
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
-# --- HARİTA VE VERİ DOSYALARI (Bunlar GitHub'a atılmaz) ---
+# --- HARİTA VE VERİ DOSYALARI ---
 *.shp
 *.shx
 *.dbf

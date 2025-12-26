@@ -6,8 +6,6 @@ import { CreatePlaceDto } from './dto/create-place.dto';
 import { Point } from 'geojson';
 import * as path from 'path';
 
-// Shapefile Kütüphanesi
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const shapefile = require('shapefile');
 
 @Injectable()
@@ -95,8 +93,6 @@ export class PlacesService {
       let batch: Place[] = [];
       
       try {
-        // ÇÖZÜM BURADA: Dosyayı doğrudan UTF-8 olarak açıyoruz.
-        // Artık manuel düzeltmeye gerek yok.
         const source = await shapefile.open(filePath, undefined, { encoding: 'utf-8' });
         
         let result;
